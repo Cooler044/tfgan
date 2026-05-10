@@ -1,13 +1,20 @@
 import sys
 import os
 
+# --- ADD THESE 3 LINES TO FORCE PYQT5 ---
+os.environ["QT_API"] = "pyqt5"
+import matplotlib
+matplotlib.use('Qt5Agg')
+# ----------------------------------------
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import net_utils
 import numpy as np
 import time
-from bh_tsne.bhtsne import bh_tsne
+#from bh_tsne.bhtsne import bh_tsne
+from sklearn.manifold import TSNE
 from PIL import Image
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
@@ -139,7 +146,7 @@ class GenerativeVolumeRenderer:
         if replicate > 1:
             th_view_data = th_view_data.expand(replicate, th_view_data.size()[1])
 
-        return Variable(th_view_data, volatile=is_volatile, requires_grad=requires_grad)
+        return Variable(th_view_data, requires_grad=requires_grad)
 
     def torch_opacity_tf(self, tf, is_volatile=True, requires_grad=False, replicate=1):
         normalized_opacity_func = np.reshape(net_utils.normalize_opacity(tf[:, 1:]), ((1, 1, 256))).astype(np.float32)
@@ -151,7 +158,7 @@ class GenerativeVolumeRenderer:
         if replicate > 1:
             th_opacity = th_opacity.expand(replicate, th_opacity.size()[1], th_opacity.size()[2])
 
-        return Variable(th_opacity, volatile=is_volatile, requires_grad=requires_grad)
+        return Variable(th_opacity, requires_grad=requires_grad)
 
     def torch_color_tf(self, tf, is_volatile=True, requires_grad=False, replicate=1):
         lab_tf = net_utils.normalize_rgb_to_lab(tf[:, 1:])
@@ -166,7 +173,7 @@ class GenerativeVolumeRenderer:
         if replicate > 1:
             th_color = th_color.expand(replicate, th_color.size()[1], th_color.size()[2])
 
-        return Variable(th_color, volatile=is_volatile, requires_grad=requires_grad)
+        return Variable(th_color, requires_grad=requires_grad)
 
     # opacity net encodings
     def opnet_encode_view(self, elevation, azimuth, roll, zoom, is_volatile=True, requires_grad=False, replicate=1):
@@ -611,7 +618,19 @@ class GenerativeVolumeRenderer:
         if not self.use_pca:
             start = time.time()
             random_op_feats = self.ae_op_feats
-            self.subspace_feats = np.array([projected_pt for projected_pt in bh_tsne(self.ae_op_feats, no_dims=2, perplexity=30, theta=0.5, randseed=-1, verbose=True)])
+            
+            # Scikit-learn TSNE replacement
+            tsne_model = TSNE(
+                n_components=2, 
+                perplexity=30.0, 
+                angle=0.5,           # Equivalent to theta=0.5
+                method='barnes_hut', 
+                random_state=42,     # Locks the layout instead of randseed=-1
+                verbose=1
+            )
+            self.subspace_feats = tsne_model.fit_transform(self.ae_op_feats)
+            
+            #self.subspace_feats = np.array([projected_pt for projected_pt in bh_tsne(self.ae_op_feats, no_dims=2, perplexity=30, theta=0.5, randseed=-1, verbose=True)])
             tsne_U, tsne_s, tsne_V = np.linalg.svd(self.subspace_feats, full_matrices=False)
             self.subspace_feats = self.subspace_feats.dot(tsne_V.T)
             end = time.time()

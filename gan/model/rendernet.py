@@ -354,7 +354,7 @@ class TranslationNetGenerator(nn.Module):
         self.debug = False
 
         if self.use_latent_opacity:
-            self.opNet = [torch.load(opt.opNet,map_location={'cuda:0': 'cuda:%d'%opt.gid, 'cuda:1': 'cuda:%d'%opt.gid})]
+            self.opNet = [torch.load(opt.opNet,map_location={'cuda:0': 'cuda:%d'%opt.gid, 'cuda:1': 'cuda:%d'%opt.gid}, weights_only=False)]
             self.opNet[0].cuda()
             self.opNet[0].eval()
             self.latent_op_dim = self.opNet[0].latent_dim

@@ -21,14 +21,26 @@ from tqdm import tqdm
 
 
 class MetaGenerator(object):
-    def __init__(self, data_file_name, scalar_field_name='Scalars_', max_zoom=2.5, begin_alpha=0.1, end_alpha=0.9):
+    def __init__(self, data_file_name, scalar_field_name='ImageFile', max_zoom=2.5, begin_alpha=0.1, end_alpha=0.9):
         volume_reader = vtk.vtkXMLImageDataReader()
         volume_reader.SetFileName(data_file_name)
         volume_reader.Update()
 
+        #volume_data = volume_reader.GetOutput()
+        #volume_data.GetPointData().SetActiveAttribute(scalar_field_name, 0)
+        #self.data_range = volume_data.GetPointData().GetScalars().GetRange()
+        
         volume_data = volume_reader.GetOutput()
-        volume_data.GetPointData().SetActiveAttribute(scalar_field_name, 0)
-        self.data_range = volume_data.GetPointData().GetScalars().GetRange()
+        point_data = volume_data.GetPointData()
+
+        # If the expected name doesn't exist, automatically grab the first available data array
+        if not point_data.HasArray(scalar_field_name) and point_data.GetNumberOfArrays() > 0:
+            scalar_field_name = point_data.GetArrayName(0)
+            print(f"[*] Data array automatically detected as: '{scalar_field_name}'")
+
+        # Set it as the active scalar and get the range
+        point_data.SetActiveScalars(scalar_field_name)
+        self.data_range = point_data.GetScalars().GetRange()
 
         # default options
         self.name = ""

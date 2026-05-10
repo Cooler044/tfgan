@@ -38,14 +38,30 @@ args = parser.parse_args()
 volume_filename = args.vol
 translatenet_filename = args.trnet
 
-sf_name = 'ImageFile'
+#sf_name = 'ImageFile'
+#sf_name = 'Scalars_'
+#volume_dataset_reader = vtk.vtkXMLImageDataReader()
+#volume_dataset_reader.SetFileName(volume_filename)
+#volume_dataset_reader.Update()
+#volume_data = volume_dataset_reader.GetOutput()
+#volume_data.GetPointData().SetActiveAttribute(sf_name, 0)
+#data_range = volume_data.GetPointData().GetScalars().GetRange()
+
 sf_name = 'Scalars_'
 volume_dataset_reader = vtk.vtkXMLImageDataReader()
 volume_dataset_reader.SetFileName(volume_filename)
 volume_dataset_reader.Update()
+
 volume_data = volume_dataset_reader.GetOutput()
-volume_data.GetPointData().SetActiveAttribute(sf_name, 0)
-data_range = volume_data.GetPointData().GetScalars().GetRange()
+point_data = volume_data.GetPointData()
+
+# Auto-detect array name if the default one is missing
+if not point_data.HasArray(sf_name) and point_data.GetNumberOfArrays() > 0:
+    sf_name = point_data.GetArrayName(0)
+    print(f"[*] Data array automatically detected as: '{sf_name}'")
+
+point_data.SetActiveScalars(sf_name)
+data_range = point_data.GetScalars().GetRange()
 
 matplotlib.rcParams.update({'font.size': 10})
 matplotlib.rcParams['font.family'] = 'Times New Roman'
@@ -57,9 +73,9 @@ class NeuralVolumeRenderer(QWidget):
         super().__init__()
 
         if args.cuda:
-            self.translatenet = torch.load(args.trnet, map_location={'cuda:0': 'cuda:%d' % args.gid, 'cuda:1': 'cuda:%d' % args.gid})
+            self.translatenet = torch.load(args.trnet, map_location={'cuda:0': 'cuda:%d' % args.gid, 'cuda:1': 'cuda:%d' % args.gid}, weights_only=False)
         else:
-            self.translatenet = torch.load(args.trnet, map_location={'cuda:0': 'cpu', 'cuda:1': 'cpu'})
+            self.translatenet = torch.load(args.trnet, map_location={'cuda:0': 'cpu', 'cuda:1': 'cpu'}, weights_only=False)
         self.opnet = self.translatenet.opNet[0]
         self.genren = GenerativeVolumeRenderer(self.opnet, self.translatenet, scalar_range=np.array([data_range[0],data_range[1]]), use_cuda=args.cuda)
 
@@ -80,7 +96,7 @@ class NeuralVolumeRenderer(QWidget):
         self.widget_height = self.target_res
 
         self.main_layout = QHBoxLayout()
-        self.main_layout.setSpacing(5.0)
+        self.main_layout.setSpacing(5)
         self.setLayout(self.main_layout)
 
         self.view_widget = QWidget()
@@ -113,7 +129,7 @@ class NeuralVolumeRenderer(QWidget):
         self.opacity_tf_view.setFocusPolicy(QtCore.Qt.ClickFocus)
         self.opacity_tf_view.setFocus()
         self.opacity_tf_view.setup_widget(self.genren, self)
-        self.opacity_tf_view.setFixedSize(self.opacity_tf_width, self.opacity_tf_height)
+        self.opacity_tf_view.setFixedSize(int(self.opacity_tf_width), int(self.opacity_tf_height))
         self.main_layout.addWidget(self.opacity_tf_view)
         self.main_layout.setAlignment(self.opacity_tf_view, QtCore.Qt.AlignVCenter)
 
@@ -131,7 +147,7 @@ class NeuralVolumeRenderer(QWidget):
         self.do_update()
 
     def initUI(self):
-        self.setGeometry(500, 500, self.widget_width, self.widget_height)
+        self.setGeometry(500, 500, int(self.widget_width), int(self.widget_height))
         self.show()
 
     def do_region_update(self, start_region, end_region):

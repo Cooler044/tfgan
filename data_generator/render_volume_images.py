@@ -35,8 +35,18 @@ to_render = True
 volume_dataset_reader = vtk.vtkXMLImageDataReader()
 volume_dataset_reader.SetFileName(volume_filename)
 volume_dataset_reader.Update()
+#volume_data = volume_dataset_reader.GetOutput()
+#volume_data.GetPointData().SetActiveAttribute(sf_name, 0)
+
 volume_data = volume_dataset_reader.GetOutput()
-volume_data.GetPointData().SetActiveAttribute(sf_name, 0)
+point_data = volume_data.GetPointData()
+
+# Auto-detect array name if the default one is missing
+if not point_data.HasArray(sf_name) and point_data.GetNumberOfArrays() > 0:
+    sf_name = point_data.GetArrayName(0)
+    print(f"[*] Data array automatically detected as: '{sf_name}'")
+
+point_data.SetActiveScalars(sf_name)
 
 # compute volume center
 volume_spacing = np.array(volume_data.GetSpacing())
