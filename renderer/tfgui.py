@@ -168,11 +168,22 @@ class OpacityTFWidget(MyMplCanvas):
                 new_bandwidth = max(new_bandwidth, self.min_bandwidth)
                 self.genren.opacity_gmm[self.pt_selected, 1] = new_bandwidth
         elif self.in_cm(event):
+#            if event.button == 1:
+#                print(self.pt_selected)
+#                diff_update = np.array([event.xdata, event.ydata]) - self.pressed_plot_pt
+#                diff = self.cm_to_cv(diff_update[0])
+#                self.genren.color_gmm[self.pt_selected, 0] += diff
             if event.button == 1:
-                print(self.pt_selected)
+                # Calculate pixel difference
                 diff_update = np.array([event.xdata, event.ydata]) - self.pressed_plot_pt
-                diff = self.cm_to_cv(diff_update[0])
-                self.genren.color_gmm[self.pt_selected, 0] += diff
+
+                # Convert pixel difference to true scalar difference (without the cv_min offset)
+                cv_min = self.genren.color_tf[0][0]
+                cv_max = self.genren.color_tf[-1][0]
+                diff_cv = diff_update[0] * (cv_max - cv_min) / 255.0
+
+                # Add to the absolute position
+                self.genren.color_gmm[self.pt_selected, 0] += diff_cv
             pass
 
         self.genren.update_gmm_transfer_function()

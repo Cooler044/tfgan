@@ -50,9 +50,9 @@ class SENExplorer(QWidget):
 
         # setup genren
         if opt.cuda:
-            tr = torch.load(opt.trnet, map_location={'cuda:0': 'cuda:%d' % opt.gid, 'cuda:1': 'cuda:%d' % opt.gid})
+            tr = torch.load(opt.trnet, map_location={'cuda:0': 'cuda:%d' % opt.gid, 'cuda:1': 'cuda:%d' % opt.gid}, weights_only=False)
         else:
-            tr = torch.load(opt.trnet, map_location={'cuda:0': 'cpu', 'cuda:1': 'cpu'})
+            tr = torch.load(opt.trnet, map_location={'cuda:0': 'cpu', 'cuda:1': 'cpu'}, weights_only=False)
         op = tr.opNet[0]
 
         if opt.range is None:
@@ -62,7 +62,7 @@ class SENExplorer(QWidget):
 
         self.genren = GenerativeVolumeRenderer(op, tr, scalar_range=scalar_range, use_cuda=opt.cuda, gid=opt.gid)
 
-        self.cm = matplotlib.cm.ScalarMappable(cmap=matplotlib.cm.get_cmap(name='plasma'))
+        self.cm = matplotlib.cm.ScalarMappable(cmap=matplotlib.colormaps.get_cmap('plasma'))
         # initialize
         self.setWindowTitle('TF Sensitivity')
         self.initUI()
@@ -97,7 +97,7 @@ class SENExplorer(QWidget):
         d_geo = QApplication.desktop().screenGeometry()
         d_width = d_geo.width()
         d_height = d_geo.height()
-        self.setGeometry(d_width / 2 - self.width / 2, d_height / 2 - self.height / 2, self.width, self.height)
+        self.setGeometry(int(d_width / 2 - self.width / 2), int(d_height / 2 - self.height / 2), int(self.width), int(self.height))
         self.show()
 
     def update_tf_editor(self, do_full_update=False):
@@ -233,7 +233,7 @@ class ImageViewer(QWidget):
 
         # compute global sensitivity
         block_size = self.img_res // self.num_blocks
-        img = np.zeros((3,self.img_res,self.img_res)).astype(np.float)
+        img = np.zeros((3,self.img_res,self.img_res)).astype(float)
         print('rgb image size:',rgb_img.shape,'op image size:',op_img.shape)
 
         for r in range(self.num_blocks):
@@ -656,10 +656,24 @@ class ColorTFEditor(MyMplCanvas):
             return
         if plot_pt[0] is None or plot_pt[1] is None:
             return
+#        if event.button == 1:
+#            diff_update = np.array([event.xdata, event.ydata]) - self.pressed_plot_pt
+#            diff = self.cm_to_cv(diff_update[0])
+#            self.genren.color_gmm[self.pt_selected, 0] += diff
+#            self.genren.update_gmm_transfer_function()
+#            self.update_plot()
         if event.button == 1:
+            # Рахуємо різницю в пікселях
             diff_update = np.array([event.xdata, event.ydata]) - self.pressed_plot_pt
-            diff = self.cm_to_cv(diff_update[0])
-            self.genren.color_gmm[self.pt_selected, 0] += diff
+
+            # Переводимо різницю в справжній скалярний масштаб
+            cv_min = self.genren.color_tf[0][0]
+            cv_max = self.genren.color_tf[-1][0]
+            diff_cv = diff_update[0] * (cv_max - cv_min) / 255.0
+
+            # Додаємо до поточної позиції
+            self.genren.color_gmm[self.pt_selected, 0] += diff_cv
+
             self.genren.update_gmm_transfer_function()
             self.update_plot()
 
