@@ -283,7 +283,7 @@ class GenerativeVolumeRenderer:
         self.translation_encode_opacity_tf(self.opacity_tf, prior_encoding=self.opnet_tf_encoding)
         self.translation_encode_color_tf(self.color_tf)
 
-    def predict_sensitivity(self, elevation, azimuth, roll, zoom, min_bb=None, max_bb=None, return_img=False):
+    def predict_sensitivity(self, elevation, azimuth, roll, zoom, min_bb=None, max_bb=None, return_img=False, mask=None):
         # opacity network
         self.opnet_encode_view(elevation,azimuth,roll,zoom, is_volatile=False, requires_grad=False)
         th_opacity = self.opnet_encode_tf(self.opacity_tf, is_volatile=False, requires_grad=True, eps=self.norm_eps)
@@ -308,7 +308,23 @@ class GenerativeVolumeRenderer:
                 y_range = np.arange(min_bb[1], max_bb[1] + 1)
                 predicted_img = predicted_img[:, :, y_range[0]:y_range[-1], x_range[0]:x_range[-1]]
 
-        img_norm = torch.norm(predicted_img)
+        # Застосування бінарної маски перед розрахунком норми
+        predicted_img_for_norm = predicted_img
+        if mask is not None:
+            # Перетворюємо numpy маску в PyTorch Variable
+            if isinstance(mask, np.ndarray):
+                mask_th = torch.from_numpy(mask).float()
+            else:
+                mask_th = mask.float()
+
+            if self.using_cuda:
+                mask_th = mask_th.cuda()
+
+            # Множимо зображення на маску (pixel-wise multiplication)
+            predicted_img_for_norm = predicted_img * Variable(mask_th, requires_grad=False)
+
+        img_norm = torch.norm(predicted_img_for_norm)
+
         img_norm.backward()
         self.predicted_sensitivity = self.sensitivity_filter(torch.Tensor.numpy(th_opacity.grad.data.cpu())[0, 0, :])
 
